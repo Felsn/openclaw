@@ -87,7 +87,7 @@ function resolveAttachmentLimits(config: OpenClawConfig): AttachmentLimits {
       typeof attachmentsCfg?.maxFileBytes === "number" &&
       Number.isFinite(attachmentsCfg.maxFileBytes)
         ? Math.max(0, Math.floor(attachmentsCfg.maxFileBytes))
-        : 1 * 1024 * 1024,
+        : 1024 * 1024 * 1024,
     retainOnSessionKeep: attachmentsCfg?.retainOnSessionKeep === true,
   };
 }
