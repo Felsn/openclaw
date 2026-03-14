@@ -11,7 +11,7 @@ import { resolveConfigDir } from "../utils.js";
 import { detectMime, extensionForMime } from "./mime.js";
 
 const resolveMediaDir = () => path.join(resolveConfigDir(), "media");
-export const MEDIA_MAX_BYTES = 5 * 1024 * 1024; // 5MB default
+export const MEDIA_MAX_BYTES = 1024 * 1024 * 1024; // 1GB default
 const MAX_BYTES = MEDIA_MAX_BYTES;
 const DEFAULT_TTL_MS = 2 * 60 * 1000; // 2 minutes
 // Files are intentionally readable by non-owner UIDs so Docker sandbox containers can access
@@ -225,7 +225,9 @@ async function downloadToFile(
               sniffLen += chunk.length;
             }
             if (total > MAX_BYTES) {
-              req.destroy(new Error("Media exceeds 5MB limit"));
+              req.destroy(
+                new Error(`Media exceeds ${Math.round(MEDIA_MAX_BYTES / (1024 * 1024))}MB limit`),
+              );
             }
           });
           pipeline(res, out)
@@ -327,7 +329,11 @@ function toSaveMediaSourceError(err: SafeOpenError): SaveMediaSourceError {
         cause: err,
       });
     case "too-large":
-      return new SaveMediaSourceError("too-large", "Media exceeds 5MB limit", { cause: err });
+      return new SaveMediaSourceError(
+        "too-large",
+        `Media exceeds ${Math.round(MEDIA_MAX_BYTES / (1024 * 1024))}MB limit`,
+        { cause: err },
+      );
     case "not-found":
       return new SaveMediaSourceError("not-found", "Media path does not exist", { cause: err });
     case "outside-workspace":

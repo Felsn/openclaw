@@ -63,8 +63,8 @@ describe("media store", () => {
       expect(savedJpeg.contentType).toBe("image/jpeg");
       expect(savedJpeg.path.endsWith(".jpg")).toBe(true);
 
-      const huge = Buffer.alloc(5 * 1024 * 1024 + 1);
-      await expect(store.saveMediaBuffer(huge)).rejects.toThrow("Media exceeds 5MB limit");
+      const huge = Buffer.alloc(1024 * 1024 * 1024 + 1);
+      await expect(store.saveMediaBuffer(huge)).rejects.toThrow("Media exceeds 1024MB limit");
     });
   });
 

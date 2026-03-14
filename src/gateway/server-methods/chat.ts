@@ -1140,7 +1140,7 @@ export const chatHandlers: GatewayRequestHandlers = {
     if (normalizedAttachments.length > 0) {
       try {
         const parsed = await parseMessageWithAttachments(inboundMessage, normalizedAttachments, {
-          maxBytes: 5_000_000,
+          maxBytes: 1024 * 1024 * 1024,
           log: context.logGateway,
         });
         parsedMessage = parsed.message;
@@ -1155,16 +1155,17 @@ export const chatHandlers: GatewayRequestHandlers = {
             throw new Error(`attachment ${idx + 1}: invalid base64 content`);
           }
           const bodyBuffer = Buffer.from(base64, "base64");
-          if (bodyBuffer.length === 0 || bodyBuffer.length > 5_000_000) {
+          const maxAttachmentBytes = 1024 * 1024 * 1024;
+          if (bodyBuffer.length === 0 || bodyBuffer.length > maxAttachmentBytes) {
             throw new Error(
-              `attachment ${idx + 1}: exceeds size limit (${bodyBuffer.length} > 5000000 bytes)`,
+              `attachment ${idx + 1}: exceeds size limit (${bodyBuffer.length} > ${maxAttachmentBytes} bytes)`,
             );
           }
           const saved = await saveMediaBuffer(
             bodyBuffer,
             attachment.mimeType,
             "inbound",
-            5_000_000,
+            maxAttachmentBytes,
             attachment.fileName,
           );
           parsedMediaPaths.push(saved.path);
