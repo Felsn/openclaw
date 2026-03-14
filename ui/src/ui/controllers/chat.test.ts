@@ -572,6 +572,39 @@ describe("sendChatMessage", () => {
       ],
     });
   });
+
+  it("sends attachments with file metadata", async () => {
+    const request = vi.fn().mockResolvedValue({});
+    const state = createState({
+      connected: true,
+      client: { request } as unknown as ChatState["client"],
+      chatAttachments: [
+        {
+          id: "a1",
+          fileName: "doc.pdf",
+          dataUrl: "data:application/pdf;base64,SGVsbG8=",
+          mimeType: "application/pdf",
+        },
+      ],
+    });
+
+    const runId = await sendChatMessage(state, "please read");
+    expect(runId).not.toBeNull();
+    expect(request).toHaveBeenCalledWith("chat.send", {
+      sessionKey: "main",
+      message: "please read",
+      deliver: false,
+      idempotencyKey: runId,
+      attachments: [
+        {
+          type: "file",
+          fileName: "doc.pdf",
+          mimeType: "application/pdf",
+          content: "SGVsbG8=",
+        },
+      ],
+    });
+  });
 });
 
 describe("abortChatRun", () => {

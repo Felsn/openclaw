@@ -87,8 +87,10 @@ describe("parseMessageWithAttachments", () => {
       },
     ]);
     expect(parsed.images).toHaveLength(0);
+    expect(parsed.attachments).toHaveLength(1);
+    expect(parsed.attachments[0]?.mimeType).toBe("application/pdf");
     expect(logs).toHaveLength(1);
-    expect(logs[0]).toMatch(/non-image/i);
+    expect(logs[0]).toMatch(/mime mismatch/i);
   });
 
   it("prefers sniffed mime type and logs mismatch", async () => {
@@ -112,8 +114,9 @@ describe("parseMessageWithAttachments", () => {
       { type: "file", fileName: "unknown.bin", content: unknown },
     ]);
     expect(parsed.images).toHaveLength(0);
-    expect(logs).toHaveLength(1);
-    expect(logs[0]).toMatch(/unable to detect image mime type/i);
+    expect(parsed.attachments).toHaveLength(1);
+    expect(parsed.attachments[0]?.mimeType).toBe("application/octet-stream");
+    expect(logs).toHaveLength(0);
   });
 
   it("keeps valid images and drops invalid ones", async () => {
@@ -135,7 +138,10 @@ describe("parseMessageWithAttachments", () => {
     expect(parsed.images).toHaveLength(1);
     expect(parsed.images[0]?.mimeType).toBe("image/png");
     expect(parsed.images[0]?.data).toBe(PNG_1x1);
-    expect(logs.some((l) => /non-image/i.test(l))).toBe(true);
+    expect(parsed.attachments.length).toBe(2);
+    expect(parsed.attachments[0]?.mimeType).toBe("image/png");
+    expect(parsed.attachments[1]?.mimeType).toBe("application/pdf");
+    expect(logs.some((l) => /mime mismatch/i.test(l))).toBe(true);
   });
 });
 

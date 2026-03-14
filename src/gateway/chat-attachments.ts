@@ -14,9 +14,16 @@ export type ChatImageContent = {
   mimeType: string;
 };
 
-export type ParsedMessageWithImages = {
+export type ParsedAttachment = {
+  fileName: string;
+  mimeType: string;
+  base64: string;
+};
+
+export type ParsedMessageWithAttachments = {
   message: string;
   images: ChatImageContent[];
+  attachments: ParsedAttachment[];
 };
 
 type AttachmentLog = {
@@ -98,7 +105,7 @@ export async function parseMessageWithAttachments(
   message: string,
   attachments: ChatAttachment[] | undefined,
   opts?: { maxBytes?: number; log?: AttachmentLog },
-): Promise<ParsedMessageWithImages> {
+): Promise<ParsedMessageWithAttachments> {
   const maxBytes = opts?.maxBytes ?? 5_000_000; // decoded bytes (5,000,000)
   const log = opts?.log;
   if (!attachments || attachments.length === 0) {
@@ -107,6 +114,7 @@ export async function parseMessageWithAttachments(
 
   const images: ChatImageContent[] = [];
 
+  const parsedAttachments: ParsedAttachment[] = [];
   for (const [idx, att] of attachments.entries()) {
     if (!att) {
       continue;
@@ -120,28 +128,29 @@ export async function parseMessageWithAttachments(
 
     const providedMime = normalizeMime(mime);
     const sniffedMime = normalizeMime(await sniffMimeFromBase64(b64));
-    if (sniffedMime && !isImageMime(sniffedMime)) {
-      log?.warn(`attachment ${label}: detected non-image (${sniffedMime}), dropping`);
-      continue;
-    }
-    if (!sniffedMime && !isImageMime(providedMime)) {
-      log?.warn(`attachment ${label}: unable to detect image mime type, dropping`);
-      continue;
-    }
+    const finalMime = sniffedMime ?? providedMime ?? "application/octet-stream";
     if (sniffedMime && providedMime && sniffedMime !== providedMime) {
       log?.warn(
         `attachment ${label}: mime mismatch (${providedMime} -> ${sniffedMime}), using sniffed`,
       );
     }
 
-    images.push({
-      type: "image",
-      data: b64,
-      mimeType: sniffedMime ?? providedMime ?? mime,
+    parsedAttachments.push({
+      fileName: att.fileName || att.type || `attachment-${idx + 1}`,
+      mimeType: finalMime,
+      base64: b64,
     });
+
+    if (isImageMime(finalMime)) {
+      images.push({
+        type: "image",
+        data: b64,
+        mimeType: finalMime,
+      });
+    }
   }
 
-  return { message, images };
+  return { message, images, attachments: parsedAttachments };
 }
 
 /**

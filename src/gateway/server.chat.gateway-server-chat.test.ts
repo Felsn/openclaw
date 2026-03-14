@@ -419,6 +419,35 @@ describe("gateway server chat", () => {
       expect(imgOnlyRes.ok).toBe(true);
       expect(imgOnlyRes.payload?.runId).toBeDefined();
 
+      const reqIdFile = "chat-file";
+      ws.send(
+        JSON.stringify({
+          type: "req",
+          id: reqIdFile,
+          method: "chat.send",
+          params: {
+            sessionKey: "main",
+            message: "see file",
+            idempotencyKey: "idem-file",
+            attachments: [
+              {
+                type: "file",
+                mimeType: "application/pdf",
+                fileName: "doc.pdf",
+                content: Buffer.from("%PDF-1.4\n").toString("base64"),
+              },
+            ],
+          },
+        }),
+      );
+      const fileRes = await onceMessage(
+        ws,
+        (o) => o.type === "res" && o.id === reqIdFile,
+        CHAT_RESPONSE_TIMEOUT_MS,
+      );
+      expect(fileRes.ok).toBe(true);
+      expect(fileRes.payload?.runId).toBeDefined();
+
       const historyDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-gw-"));
       tempDirs.push(historyDir);
       testState.sessionStorePath = path.join(historyDir, "sessions.json");

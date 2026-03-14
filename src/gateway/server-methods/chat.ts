@@ -11,6 +11,7 @@ import { isSilentReplyText, SILENT_REPLY_TOKEN } from "../../auto-reply/tokens.j
 import { createReplyPrefixOptions } from "../../channels/reply-prefix.js";
 import { resolveSessionFilePath } from "../../config/sessions.js";
 import { jsonUtf8Bytes } from "../../infra/json-utf8-bytes.js";
+import { saveMediaBuffer } from "../../media/store.js";
 import { normalizeInputProvenance, type InputProvenance } from "../../sessions/input-provenance.js";
 import { resolveSendPolicy } from "../../sessions/send-policy.js";
 import { parseAgentSessionKey } from "../../sessions/session-key-utils.js";
@@ -1134,6 +1135,8 @@ export const chatHandlers: GatewayRequestHandlers = {
     }
     let parsedMessage = inboundMessage;
     let parsedImages: ChatImageContent[] = [];
+    const parsedMediaPaths: string[] = [];
+    const parsedMediaTypes: string[] = [];
     if (normalizedAttachments.length > 0) {
       try {
         const parsed = await parseMessageWithAttachments(inboundMessage, normalizedAttachments, {
@@ -1142,6 +1145,31 @@ export const chatHandlers: GatewayRequestHandlers = {
         });
         parsedMessage = parsed.message;
         parsedImages = parsed.images;
+
+        for (const [idx, attachment] of normalizedAttachments.entries()) {
+          if (!attachment?.content || typeof attachment.content !== "string") {
+            throw new Error(`attachment ${idx + 1}: content must be base64 string`);
+          }
+          const base64 = attachment.content.replace(/^data:[^;]+;base64,/, "").trim();
+          if (!/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) {
+            throw new Error(`attachment ${idx + 1}: invalid base64 content`);
+          }
+          const bodyBuffer = Buffer.from(base64, "base64");
+          if (bodyBuffer.length === 0 || bodyBuffer.length > 5_000_000) {
+            throw new Error(
+              `attachment ${idx + 1}: exceeds size limit (${bodyBuffer.length} > 5000000 bytes)`,
+            );
+          }
+          const saved = await saveMediaBuffer(
+            bodyBuffer,
+            attachment.mimeType,
+            "inbound",
+            5_000_000,
+            attachment.fileName,
+          );
+          parsedMediaPaths.push(saved.path);
+          parsedMediaTypes.push(attachment.mimeType ?? "application/octet-stream");
+        }
       } catch (err) {
         respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, String(err)));
         return;
@@ -1273,6 +1301,10 @@ export const chatHandlers: GatewayRequestHandlers = {
         SenderName: clientInfo?.displayName,
         SenderUsername: clientInfo?.displayName,
         GatewayClientScopes: client?.connect?.scopes,
+        MediaPaths: parsedMediaPaths.length > 0 ? parsedMediaPaths : undefined,
+        MediaTypes: parsedMediaTypes.length > 0 ? parsedMediaTypes : undefined,
+        MediaPath: parsedMediaPaths.length > 0 ? parsedMediaPaths[0] : undefined,
+        MediaType: parsedMediaTypes.length > 0 ? parsedMediaTypes[0] : undefined,
       };
 
       const agentId = resolveSessionAgentId({

@@ -1,10 +1,7 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { ref } from "lit/directives/ref.js";
 import { repeat } from "lit/directives/repeat.js";
-import {
-  CHAT_ATTACHMENT_ACCEPT,
-  isSupportedChatAttachmentMimeType,
-} from "../chat/attachment-support.ts";
+import { CHAT_ATTACHMENT_ACCEPT } from "../chat/attachment-support.ts";
 import { DeletedMessages } from "../chat/deleted-messages.ts";
 import { exportChatMarkdown } from "../chat/export.ts";
 import {
@@ -302,18 +299,18 @@ function handlePaste(e: ClipboardEvent, props: ChatProps) {
   if (!items || !props.onAttachmentsChange) {
     return;
   }
-  const imageItems: DataTransferItem[] = [];
+  const fileItems: DataTransferItem[] = [];
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
-    if (item.type.startsWith("image/")) {
-      imageItems.push(item);
+    if (item.kind === "file") {
+      fileItems.push(item);
     }
   }
-  if (imageItems.length === 0) {
+  if (fileItems.length === 0) {
     return;
   }
   e.preventDefault();
-  for (const item of imageItems) {
+  for (const item of fileItems) {
     const file = item.getAsFile();
     if (!file) {
       continue;
@@ -323,8 +320,9 @@ function handlePaste(e: ClipboardEvent, props: ChatProps) {
       const dataUrl = reader.result as string;
       const newAttachment: ChatAttachment = {
         id: generateAttachmentId(),
+        fileName: file.name || "attachment",
         dataUrl,
-        mimeType: file.type,
+        mimeType: file.type || "application/octet-stream",
       };
       const current = props.attachments ?? [];
       props.onAttachmentsChange?.([...current, newAttachment]);
@@ -342,16 +340,14 @@ function handleFileSelect(e: Event, props: ChatProps) {
   const additions: ChatAttachment[] = [];
   let pending = 0;
   for (const file of input.files) {
-    if (!isSupportedChatAttachmentMimeType(file.type)) {
-      continue;
-    }
     pending++;
     const reader = new FileReader();
     reader.addEventListener("load", () => {
       additions.push({
         id: generateAttachmentId(),
+        fileName: file.name || "attachment",
         dataUrl: reader.result as string,
-        mimeType: file.type,
+        mimeType: file.type || "application/octet-stream",
       });
       pending--;
       if (pending === 0) {
@@ -373,16 +369,14 @@ function handleDrop(e: DragEvent, props: ChatProps) {
   const additions: ChatAttachment[] = [];
   let pending = 0;
   for (const file of files) {
-    if (!isSupportedChatAttachmentMimeType(file.type)) {
-      continue;
-    }
     pending++;
     const reader = new FileReader();
     reader.addEventListener("load", () => {
       additions.push({
         id: generateAttachmentId(),
+        fileName: file.name || "attachment",
         dataUrl: reader.result as string,
-        mimeType: file.type,
+        mimeType: file.type || "application/octet-stream",
       });
       pending--;
       if (pending === 0) {
@@ -398,24 +392,33 @@ function renderAttachmentPreview(props: ChatProps): TemplateResult | typeof noth
   if (attachments.length === 0) {
     return nothing;
   }
+
   return html`
     <div class="chat-attachments-preview">
-      ${attachments.map(
-        (att) => html`
-          <div class="chat-attachment-thumb">
-            <img src=${att.dataUrl} alt="Attachment preview" />
-            <button
-              class="chat-attachment-remove"
-              type="button"
-              aria-label="Remove attachment"
-              @click=${() => {
-                const next = (props.attachments ?? []).filter((a) => a.id !== att.id);
-                props.onAttachmentsChange?.(next);
-              }}
-            >&times;</button>
-          </div>
-        `,
-      )}
+      ${attachments.map((att) => {
+        const isImage = att.mimeType?.startsWith("image/");
+        return html`
+            <div class="chat-attachment-thumb">
+              ${
+                isImage
+                  ? html`<img src=${att.dataUrl} alt=${att.fileName ?? "Attachment"} />`
+                  : html`
+                      <div class="chat-attachment-file-icon">📎</div>
+                    `
+              }
+              <div class="chat-attachment-file-name">${att.fileName ?? "attachment"}</div>
+              <button
+                class="chat-attachment-remove"
+                type="button"
+                aria-label="Remove attachment"
+                @click=${() => {
+                  const next = (props.attachments ?? []).filter((a) => a.id !== att.id);
+                  props.onAttachmentsChange?.(next);
+                }}
+              >&times;</button>
+            </div>
+          `;
+      })}
     </div>
   `;
 }

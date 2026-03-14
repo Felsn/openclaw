@@ -159,7 +159,8 @@ export async function sendChatMessage(
     return null;
   }
   const msg = message.trim();
-  const hasAttachments = attachments && attachments.length > 0;
+  const sendAttachments = attachments ?? state.chatAttachments;
+  const hasAttachments = sendAttachments && sendAttachments.length > 0;
   if (!msg && !hasAttachments) {
     return null;
   }
@@ -171,13 +172,20 @@ export async function sendChatMessage(
   if (msg) {
     contentBlocks.push({ type: "text", text: msg });
   }
-  // Add image previews to the message for display
+  // Add attachment previews to the message for display
   if (hasAttachments) {
-    for (const att of attachments) {
-      contentBlocks.push({
-        type: "image",
-        source: { type: "base64", media_type: att.mimeType, data: att.dataUrl },
-      });
+    for (const att of sendAttachments) {
+      if (att.mimeType.startsWith("image/")) {
+        contentBlocks.push({
+          type: "image",
+          source: { type: "base64", media_type: att.mimeType, data: att.dataUrl },
+        });
+      } else {
+        contentBlocks.push({
+          type: "text",
+          text: `[attachment: ${att.fileName ?? "file"}]`,
+        });
+      }
     }
   }
 
@@ -199,14 +207,15 @@ export async function sendChatMessage(
 
   // Convert attachments to API format
   const apiAttachments = hasAttachments
-    ? attachments
+    ? sendAttachments
         .map((att) => {
           const parsed = dataUrlToBase64(att.dataUrl);
           if (!parsed) {
             return null;
           }
           return {
-            type: "image",
+            type: att.mimeType?.startsWith("image/") ? "image" : "file",
+            fileName: att.fileName,
             mimeType: parsed.mimeType,
             content: parsed.content,
           };

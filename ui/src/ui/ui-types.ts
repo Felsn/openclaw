@@ -1,5 +1,6 @@
 export type ChatAttachment = {
   id: string;
+  fileName: string;
   dataUrl: string;
   mimeType: string;
 };
